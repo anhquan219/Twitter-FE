@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
+import { useState } from 'react'
+import axios from "axios";
 
 // Khởi tạo URL để truy cập vào Google API
 const getGooleAuthUrl = () => {
@@ -30,7 +32,35 @@ const handleLogout = () => {
 }
 
 export default function Home() {
+  const profile = JSON.parse(localStorage.getItem('profile')) || {}
   const isAuthenticated = Boolean(localStorage.getItem('access_token'))
+  const [data, setdata] = useState({
+    name: '',
+    pass: ''
+  })
+
+  const handleChangeValue = (e) => {
+    const value = e?.target.value
+    setdata({...data, [e.target.name]: value})
+  }
+
+  const handleLogin = (e) => {
+    e.preventDefault()
+    axios
+      .post('/users/login', 
+          { 
+            email: data.name, 
+            password: data.pass
+          },  
+          {
+              baseURL: import.meta.env.VITE_API_URI,
+          }
+      ).then((res) => {
+        const data = res.data.result
+        localStorage.setItem('access_token', data.access_token)
+        localStorage.setItem('refresh_token',  data.refresh_token)
+      })
+  }
     return (
         <>
           <div>
@@ -44,6 +74,14 @@ export default function Home() {
           <video controls width={500}>
             <source src='http://localhost:4000/static/video-stream/e3c9222d6d9268f2ef44b6c00.mp4' type='video/mp4'/>
           </video>
+
+          <form onSubmit={handleLogin}>
+            <input type="text" value={data.name} onChange={handleChangeValue} name="name"></input>
+            <input type="text" value={data.pass} onChange={handleChangeValue} name="pass"></input>
+            <button type='submit'>Login</button>
+          </form>
+
+          <span>Hello {profile.email}</span>
           <h1>Google Oauth 2.0</h1> 
           {
             isAuthenticated ? <button onClick={handleLogout}>Logout</button> : <Link to={googleOauthUrl}>Login with Google</Link>
