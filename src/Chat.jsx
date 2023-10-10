@@ -1,13 +1,25 @@
 import { useEffect, useState } from "react";
 import socket from "./socket";
+import axios from "axios";
 
 const profile = JSON.parse(localStorage.getItem('profile')) || {}
 
 export default function Chat() {
+  const usenames = [
+    {
+      name: 'User 1',
+      value: 'user64fe6e1928148bb040a26bc5'
+    },
+    {
+      name: 'User 2',
+      value: 'user64e8a7eea32158428219caaf' // Quankull73
+    },
+  ]
   const [value, setValue] = useState('')
   const [messages, setMessages] = useState([])
-  useEffect(() => {
+  const [receiver, setReceiver] = useState('')
 
+  useEffect(() => {
     // Trước khi connect gán auth với id để Server biết ai đang connected
     socket.auth = {
       _id: profile?._id
@@ -28,10 +40,11 @@ export default function Chat() {
   }, []);
 
   const send = (e) => {
+    console.log(receiver);
     e.preventDefault()
     socket.emit('private_message', {
       content: value,
-      to: '64fe6e1928148bb040a26bc5'
+      to: receiver
     })
     setValue('')
     setMessages((messages) => [...messages, {
@@ -40,8 +53,23 @@ export default function Chat() {
     }])
   }
 
+  const getProfile = (username) => {
+    axios
+      .get(`${import.meta.env.VITE_API_URI}/users/${username}`, 
+    ).then((res) => {
+      setReceiver(res.data.result._id)
+    })
+  }
+
   return <div>
     <h1>Chat</h1>
+    <div>
+      {
+        usenames.map((username) => (
+            <button key={username.value} onClick={() => getProfile(username.value)}>{username.name}</button>
+        ))
+      }
+    </div>
     <div className="chat">
       {
         messages.map((message, index) => (
