@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import socket from "./socket";
 import axios from "axios";
+import InfiniteScroll from 'react-infinite-scroll-component';
 
 const profile = JSON.parse(localStorage.getItem('profile')) || {}
+const LIMIT = 10
+const PAGE = 1
 const usenames = [
   {
     name: 'Quan 22',
@@ -18,6 +21,10 @@ export default function Chat() {
   const [value, setValue] = useState('')
   const [conversations, setConversations] = useState([])
   const [receiver, setReceiver] = useState('')
+  const [pagination, setPagination] = useState({
+    page: PAGE,
+    total_page: 0
+  })
 
   useEffect(() => {
     // Trước khi connect gán auth với id để Server biết ai đang connected
@@ -28,7 +35,7 @@ export default function Chat() {
     socket.connect()
     socket.on('receiver_message', (data) => {
       const {payload} = data
-      setConversations((conversations) => [...conversations, payload])
+      setConversations((conversations) => [payload, ...conversations])
     })
 
     return () => {
@@ -55,10 +62,13 @@ export default function Chat() {
       payload: conversation
     })
 
-    setConversations((conversations) => [...conversations, {
+    setConversations((conversations) => [
+      {
       ...conversation,
       _id: new Date().getTime()
-    }])
+      },
+      ...conversations
+    ])
   }
 
   const getProfile = (username) => {
@@ -71,14 +81,45 @@ export default function Chat() {
 
   const getConversation = (receiver) => {
     axios
-      .get(`${import.meta.env.VITE_API_URI}/conversations/receivers/${receiver}?limit=10&page=1`, {
+      .get(`${import.meta.env.VITE_API_URI}/conversations/receivers/${receiver}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('access_token')}`
+        },
+        params: {
+          limit: LIMIT,
+          page: PAGE
         }
       }
     ).then((res) => {
-      setConversations(res.data.result.conversations)
+      const {conversations, page, total_page} = res.data.result
+      setConversations(conversations)
+      setPagination({
+        page,
+        total_page
+      })
     })
+  }
+
+  const fetchMoreDataConversations = () => {
+    if (receiver && pagination.page < pagination.total_page) {
+      axios
+      .get(`${import.meta.env.VITE_API_URI}/conversations/receivers/${receiver}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`
+        },
+        params: {
+          limit: LIMIT,
+          page: pagination.page + 1
+        }
+      }).then((res) => {
+        const {conversations, page, total_page} = res.data.result
+        setConversations((prev) => [...prev, ...conversations])
+        setPagination({
+          page,
+          total_page
+        })
+      })
+    }
   }
 
   return <div>
@@ -90,16 +131,34 @@ export default function Chat() {
         ))
       }
     </div>
-    <div className="chat">
-      {
-        conversations.map((conversation) => (
-          <div key={conversation._id}>
-            <div className="message-container">
-              <div className={'message ' + (conversation.sender_id === profile._id ? 'message-right' : '')}>{conversation.content}</div>
+    <div
+      id="scrollableDiv"
+      style={{
+        height: 300,
+        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column-reverse',
+      }}
+    >
+      <InfiniteScroll
+        dataLength={conversations.length}
+        next={fetchMoreDataConversations}
+        style={{ display: 'flex', flexDirection: 'column-reverse' }} //To put endMessage and loader to the top.
+        inverse={true} //
+        hasMore={pagination.page < pagination.total_page}
+        loader={<h4>Loading...</h4>}
+        scrollableTarget="scrollableDiv"
+      >
+        {
+          conversations.map((conversation) => (
+            <div key={conversation._id}>
+              <div className="message-container">
+                <div className={'message ' + (conversation.sender_id === profile._id ? 'message-right' : '')}>{conversation.content}</div>
+              </div>
             </div>
-          </div>
-        ))
-      }
+          ))
+        }
+      </InfiniteScroll>
     </div>
     <form onSubmit={send}>
       <input type="text" value={value} onChange={(e) => setValue(e.target.value)}/>
