@@ -3,20 +3,20 @@ import socket from "./socket";
 import axios from "axios";
 
 const profile = JSON.parse(localStorage.getItem('profile')) || {}
+const usenames = [
+  {
+    name: 'Quan 22',
+    value: 'user64fe6e1928148bb040a26bc5'
+  },
+  {
+    name: 'Quan 21',
+    value: 'user64e0864e00410593d4e4c158'
+  },
+]
 
 export default function Chat() {
-  const usenames = [
-    {
-      name: 'User 1',
-      value: 'user64fe6e1928148bb040a26bc5'
-    },
-    {
-      name: 'User 2',
-      value: 'user64e8a7eea32158428219caaf' // Quankull73
-    },
-  ]
   const [value, setValue] = useState('')
-  const [messages, setMessages] = useState([])
+  const [conversations, setConversations] = useState([])
   const [receiver, setReceiver] = useState('')
 
   useEffect(() => {
@@ -26,12 +26,9 @@ export default function Chat() {
     }
 
     socket.connect()
-    socket.on('receiver_private_message', (data) => {
-      const content = data.content
-      setMessages((messages) => [...messages, {
-        content,
-        isSender: false
-      }])
+    socket.on('receiver_message', (data) => {
+      const {payload} = data
+      setConversations((conversations) => [...conversations, payload])
     })
 
     return () => {
@@ -39,17 +36,28 @@ export default function Chat() {
     }
   }, []);
 
+  useEffect(() => {
+    if (receiver) {
+      getConversation(receiver)
+    }
+  }, [receiver]);
+
   const send = (e) => {
-    console.log(receiver);
-    e.preventDefault()
-    socket.emit('private_message', {
-      content: value,
-      to: receiver
-    })
     setValue('')
-    setMessages((messages) => [...messages, {
+    e.preventDefault()
+    const conversation = {
       content: value,
-      isSender: true
+      sender_id: profile._id,
+      receiver_id: receiver
+    }
+
+    socket.emit('send_message', {
+      payload: conversation
+    })
+
+    setConversations((conversations) => [...conversations, {
+      ...conversation,
+      _id: new Date().getTime()
     }])
   }
 
@@ -58,6 +66,18 @@ export default function Chat() {
       .get(`${import.meta.env.VITE_API_URI}/users/${username}`, 
     ).then((res) => {
       setReceiver(res.data.result._id)
+    })
+  }
+
+  const getConversation = (receiver) => {
+    axios
+      .get(`${import.meta.env.VITE_API_URI}/conversations/receivers/${receiver}?limit=10&page=1`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`
+        }
+      }
+    ).then((res) => {
+      setConversations(res.data.result.conversations)
     })
   }
 
@@ -72,10 +92,10 @@ export default function Chat() {
     </div>
     <div className="chat">
       {
-        messages.map((message, index) => (
-          <div key={index}>
+        conversations.map((conversation) => (
+          <div key={conversation._id}>
             <div className="message-container">
-              <div className={'message ' + (message.isSender ? 'message-right' : '')}>{message.content}</div>
+              <div className={'message ' + (conversation.sender_id === profile._id ? 'message-right' : '')}>{conversation.content}</div>
             </div>
           </div>
         ))
