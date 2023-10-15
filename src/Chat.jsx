@@ -27,15 +27,20 @@ export default function Chat() {
   })
 
   useEffect(() => {
-    // Trước khi connect gán auth với id để Server biết ai đang connected
+    // Trước khi connect gửi Authorization lên để Server biết ai đang connected
     socket.auth = {
-      _id: profile?._id
+      Authorization: `Bearer ${localStorage.getItem('access_token')}`
     }
 
     socket.connect()
     socket.on('receiver_message', (data) => {
       const {payload} = data
       setConversations((conversations) => [payload, ...conversations])
+    })
+
+    // Bắt lỗi trước khi connnect thành công
+    socket.on('connect_error', (err) => {
+      console.log(err)
     })
 
     return () => {
